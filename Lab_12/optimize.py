@@ -4,10 +4,12 @@ import mlflow.sklearn
 import pickle
 from optuna.integration.mlflow import MLflowCallback
 from sklearn.metrics import f1_score
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, plot_importance
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
+import json
 
 # Definir directorio base
 base_dir = "Lab_12"
@@ -49,7 +51,6 @@ def optimize_model():
 
     mlflow_callback = MLflowCallback(metric_name="valid_f1", tracking_uri=mlflow.get_tracking_uri())
 
-    # Crear carpetas para guardar artefactos
     plots_dir = os.path.join(base_dir, "plots")
     models_dir = os.path.join(base_dir, "models")
     os.makedirs(plots_dir, exist_ok=True)
@@ -57,21 +58,32 @@ def optimize_model():
 
     study = optuna.create_study(direction="maximize", study_name="XGBoost Optimization")
     study.optimize(objective, n_trials=50, callbacks=[mlflow_callback])
+
     optuna.visualization.plot_optimization_history(study).write_image(os.path.join(plots_dir, "optimization_history.png"))
     optuna.visualization.plot_param_importances(study).write_image(os.path.join(plots_dir, "param_importances.png"))
 
-    # Obtener el mejor modelo
     best_model = XGBClassifier(**study.best_params, random_state=3, use_label_encoder=False, eval_metric="logloss")
     best_model.fit(X_train, y_train)
 
     with open(os.path.join(models_dir, "best_model.pkl"), "wb") as f:
         pickle.dump(best_model, f)
 
+    plt.figure(figsize=(10, 8))
+    plot_importance(best_model, max_num_features=10, importance_type="weight")
+    plt.title("Feature Importance")
+    plt.savefig(os.path.join(plots_dir, "feature_importance.png"))
+    plt.close()
+
+    with open(os.path.join(base_dir, "library_versions.json"), "w") as f:
+        json.dump({"optuna": optuna.__version__, "mlflow": mlflow.__version__}, f)
+
     with mlflow.start_run(run_name="Best_Model"):
         mlflow.sklearn.log_model(best_model, artifact_path="model")
         mlflow.log_params(study.best_params)
         mlflow.log_artifact(os.path.join(plots_dir, "optimization_history.png"))
         mlflow.log_artifact(os.path.join(plots_dir, "param_importances.png"))
+        mlflow.log_artifact(os.path.join(plots_dir, "feature_importance.png"))
+        mlflow.log_artifact(os.path.join(base_dir, "library_versions.json"))
 
 if __name__ == "__main__":
     optimize_model()
