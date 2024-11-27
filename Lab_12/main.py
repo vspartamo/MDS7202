@@ -5,9 +5,6 @@ import numpy as np
 
 
 model_path = "./Lab_12/models/best_model.pkl"
-
-with open(model_path, "rb") as file:
-    best_model = pickle.load(file)
 app = FastAPI()
 
 
@@ -47,6 +44,8 @@ def home():
 # Post
 @app.post("/potabilidad/")
 def predict_potabilidad(sample: WaterSample):
+    with open(model_path, "rb") as file:
+        best_model = pickle.load(file)
     features = np.array(
         [
             [
