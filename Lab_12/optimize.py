@@ -21,7 +21,10 @@ df = pd.read_csv(data_path)
 X = df.drop("Potability", axis=1)
 y = df["Potability"]
 
-X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.3, stratify=y, random_state=3)
+X_train, X_valid, y_train, y_valid = train_test_split(
+    X, y, test_size=0.3, stratify=y, random_state=3
+)
+
 
 def objective(trial):
     """Función objetivo para Optuna"""
@@ -34,7 +37,9 @@ def objective(trial):
         "gamma": trial.suggest_uniform("gamma", 0, 5),
     }
 
-    model = XGBClassifier(**params, random_state=3, use_label_encoder=False, eval_metric="logloss")
+    model = XGBClassifier(
+        **params, random_state=3, use_label_encoder=False, eval_metric="logloss"
+    )
     model.fit(X_train, y_train)
     y_pred = model.predict(X_valid)
     f1 = f1_score(y_valid, y_pred)
@@ -45,11 +50,14 @@ def objective(trial):
 
     return f1
 
+
 def optimize_model():
     experiment_name = "Water_Potability_Optimization"
     mlflow.set_experiment(experiment_name)
 
-    mlflow_callback = MLflowCallback(metric_name="valid_f1", tracking_uri=mlflow.get_tracking_uri())
+    mlflow_callback = MLflowCallback(
+        metric_name="valid_f1", tracking_uri=mlflow.get_tracking_uri()
+    )
 
     plots_dir = os.path.join(base_dir, "plots")
     models_dir = os.path.join(base_dir, "models")
@@ -59,10 +67,19 @@ def optimize_model():
     study = optuna.create_study(direction="maximize", study_name="XGBoost Optimization")
     study.optimize(objective, n_trials=50, callbacks=[mlflow_callback])
 
-    optuna.visualization.plot_optimization_history(study).write_image(os.path.join(plots_dir, "optimization_history.png"))
-    optuna.visualization.plot_param_importances(study).write_image(os.path.join(plots_dir, "param_importances.png"))
+    optuna.visualization.plot_optimization_history(study).write_image(
+        os.path.join(plots_dir, "optimization_history.png")
+    )
+    optuna.visualization.plot_param_importances(study).write_image(
+        os.path.join(plots_dir, "param_importances.png")
+    )
 
-    best_model = XGBClassifier(**study.best_params, random_state=3, use_label_encoder=False, eval_metric="logloss")
+    best_model = XGBClassifier(
+        **study.best_params,
+        random_state=3,
+        use_label_encoder=False,
+        eval_metric="logloss",
+    )
     best_model.fit(X_train, y_train)
 
     with open(os.path.join(models_dir, "best_model.pkl"), "wb") as f:
@@ -84,6 +101,7 @@ def optimize_model():
         mlflow.log_artifact(os.path.join(plots_dir, "param_importances.png"))
         mlflow.log_artifact(os.path.join(plots_dir, "feature_importance.png"))
         mlflow.log_artifact(os.path.join(base_dir, "library_versions.json"))
+
 
 if __name__ == "__main__":
     optimize_model()
