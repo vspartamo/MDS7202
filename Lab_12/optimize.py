@@ -2,21 +2,21 @@ import optuna
 import mlflow
 import mlflow.sklearn
 import pickle
-from optuna.integration.mlflow import MLflowCallback
 from sklearn.metrics import f1_score
-from xgboost import XGBClassifier, plot_importance
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import os
-import matplotlib.pyplot as plt
 import json
+from xgboost import XGBClassifier
+from optuna.visualization.matplotlib import (
+    plot_optimization_history,
+    plot_param_importances,
+)
 
-# Definir directorio base
-base_dir = "Lab_12"
-os.makedirs(base_dir, exist_ok=True)
+base_dir = "docs"
 
-data_path = os.path.join(base_dir, "water_potability.csv")
-df = pd.read_csv(data_path)
+df = pd.read_csv("water_potability.csv")
+df.dropna(inplace=True)
 
 X = df.drop("Potability", axis=1)
 y = df["Potability"]
@@ -26,82 +26,76 @@ X_train, X_valid, y_train, y_valid = train_test_split(
 )
 
 
-def objective(trial):
+def objective(trial: optuna.Trial):
     """Función objetivo para Optuna"""
     params = {
-        "learning_rate": trial.suggest_loguniform("learning_rate", 0.01, 0.3),
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
         "max_depth": trial.suggest_int("max_depth", 3, 10),
         "n_estimators": trial.suggest_int("n_estimators", 50, 300),
-        "subsample": trial.suggest_uniform("subsample", 0.5, 1.0),
-        "colsample_bytree": trial.suggest_uniform("colsample_bytree", 0.5, 1.0),
-        "gamma": trial.suggest_uniform("gamma", 0, 5),
+        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+        "gamma": trial.suggest_float("gamma", 0, 5),
     }
 
-    model = XGBClassifier(
-        **params, random_state=3, use_label_encoder=False, eval_metric="logloss"
-    )
+    model = XGBClassifier(**params, random_state=3, eval_metric="logloss")
     model.fit(X_train, y_train)
     y_pred = model.predict(X_valid)
     f1 = f1_score(y_valid, y_pred)
 
-    with mlflow.start_run(run_name=f"XGBoost_lr_{params['learning_rate']:.2f}"):
+    exp_id = mlflow.create_experiment(f"Experiment with lr={params['learning_rate']}")
+    with mlflow.start_run(
+        experiment_id=exp_id, run_name=f"XGBoost_lr_{params['learning_rate']}"
+    ):
         mlflow.log_params(params)
         mlflow.log_metric("valid_f1", f1)
-
+    mlflow.end_run()
     return f1
 
 
 def optimize_model():
-    experiment_name = "Water_Potability_Optimization"
-    mlflow.set_experiment(experiment_name)
-
-    mlflow_callback = MLflowCallback(
-        metric_name="valid_f1", tracking_uri=mlflow.get_tracking_uri()
-    )
-
-    plots_dir = os.path.join(base_dir, "plots")
     models_dir = os.path.join(base_dir, "models")
-    os.makedirs(plots_dir, exist_ok=True)
+    plots_dir = os.path.join(base_dir, "plots")
     os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(plots_dir, exist_ok=True)
 
     study = optuna.create_study(direction="maximize", study_name="XGBoost Optimization")
-    study.optimize(objective, n_trials=50, callbacks=[mlflow_callback])
+    study.optimize(objective, n_trials=50)
+    print(f"Best trial: {study.best_trial.value}")
 
-    optuna.visualization.plot_optimization_history(study).write_image(
-        os.path.join(plots_dir, "optimization_history.png")
-    )
-    optuna.visualization.plot_param_importances(study).write_image(
-        os.path.join(plots_dir, "param_importances.png")
-    )
+    best_model_experiment_id = mlflow.create_experiment("Best_Model")
+    with mlflow.start_run(
+        experiment_id=best_model_experiment_id, run_name="Best_Model"
+    ):
 
-    best_model = XGBClassifier(
-        **study.best_params,
-        random_state=3,
-        use_label_encoder=False,
-        eval_metric="logloss",
-    )
-    best_model.fit(X_train, y_train)
+        opti_ax = plot_optimization_history(study)
+        mlflow.log_figure(
+            figure=opti_ax.figure, artifact_file="optimization_history.png"
+        )
+        opti_ax.figure.savefig(os.path.join(plots_dir, "optimization_history.png"))
 
-    with open(os.path.join(models_dir, "best_model.pkl"), "wb") as f:
-        pickle.dump(best_model, f)
+        param_importances_ax = plot_param_importances(study)
+        mlflow.log_figure(
+            figure=param_importances_ax.figure, artifact_file="param_importance.png"
+        )
+        param_importances_ax.figure.savefig(
+            os.path.join(plots_dir, "param_importance.png")
+        )
 
-    plt.figure(figsize=(10, 8))
-    plot_importance(best_model, max_num_features=10, importance_type="weight")
-    plt.title("Feature Importance")
-    plt.savefig(os.path.join(plots_dir, "feature_importance.png"))
-    plt.close()
+        best_model = XGBClassifier(
+            **study.best_params, random_state=3, eval_metric="logloss"
+        )
+        best_model.fit(X_train, y_train)
+        y_pred = best_model.predict(X_valid)
+        f1 = f1_score(y_valid, y_pred)
 
-    with open(os.path.join(base_dir, "library_versions.json"), "w") as f:
-        json.dump({"optuna": optuna.__version__, "mlflow": mlflow.__version__}, f)
-
-    with mlflow.start_run(run_name="Best_Model"):
-        mlflow.sklearn.log_model(best_model, artifact_path="model")
+        mlflow.log_metric("valid_f1", f1)
         mlflow.log_params(study.best_params)
-        mlflow.log_artifact(os.path.join(plots_dir, "optimization_history.png"))
-        mlflow.log_artifact(os.path.join(plots_dir, "param_importances.png"))
-        mlflow.log_artifact(os.path.join(plots_dir, "feature_importance.png"))
-        mlflow.log_artifact(os.path.join(base_dir, "library_versions.json"))
+        mlflow.sklearn.log_model(best_model, artifact_path="model")
 
+        with open(os.path.join(models_dir, "best_model.pkl"), "wb") as f:
+            pickle.dump(best_model, f)
 
-if __name__ == "__main__":
-    optimize_model()
+        with open(os.path.join(base_dir, "library_versions.json"), "w") as f:
+            json.dump({"optuna": optuna.__version__, "mlflow": mlflow.__version__}, f)
+
+        mlflow.log_params(study.best_params)
