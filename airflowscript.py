@@ -143,6 +143,25 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
 )
+import os
+import pickle
+from typing import Callable, List, Union
+import mlflow
+import optuna
+import pandas as pd
+import numpy as np
+from sklearn.base import BaseEstimator
+from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
@@ -265,7 +284,7 @@ def train_model(
     use_pca=False,
     pca_components=50,
     optimize: bool = False,
-    optuna_params: dict = None,
+    get_optuna_params: Callable = None,
     n_trials: int = 50,
 ):
     mlflow.set_experiment(experiment_name)
@@ -276,9 +295,9 @@ def train_model(
     )
 
     # Optimize hyperparameters if required
-    if optimize and optuna_params:
+    if optimize and get_optuna_params:
         best_params = optimize_hyperparameters(
-            model, X_train, y_train, optuna_params, experiment_name, n_trials
+            model, X_train, y_train, get_optuna_params, experiment_name, n_trials
         )
         mlflow.end_run()
         model.set_params(**best_params)
@@ -325,7 +344,7 @@ def retrain_model(
     test_size: float = 0.2,
     random_state: int = 42,
     optimize: bool = False,
-    optuna_params: dict = None,
+    get_optuna_params: Callable = None,
     n_trials: int = 50,
 ):
     if isinstance(pipeline_or_path, str):
@@ -342,12 +361,12 @@ def retrain_model(
     )
     X_train_transformed = preprocessor.transform(X_train)
 
-    if optimize and optuna_params:
+    if optimize and get_optuna_params:
         best_params = optimize_hyperparameters(
             model,
             X_train_transformed,
             y_train,
-            optuna_params,
+            get_optuna_params,
             "retraining_optimization",
             n_trials,
         )
@@ -370,4 +389,3 @@ def retrain_model(
     evaluate_model(y_test, y_pred, y_pred_proba)
 
     return pipeline
-
