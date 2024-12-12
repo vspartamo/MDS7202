@@ -19,8 +19,8 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
 )
-
 from sklearn.preprocessing import FunctionTransformer, MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 
 # FunctionTransformer para dropear columnas
@@ -345,7 +345,7 @@ def retrain_model(
     return pipeline
 
 
-def preprocess_data(df: pd.DataFrame, preprocessor: Pipeline) -> pd.DataFrame:
+def preprocess_data(df_path: str, preprocessor: Pipeline) -> pd.DataFrame:
     """
     Prepares the data to be used in the model.
 
@@ -359,6 +359,8 @@ def preprocess_data(df: pd.DataFrame, preprocessor: Pipeline) -> pd.DataFrame:
     pd.DataFrame
         The data prepared.
     """
+    df = pd.read_csv(df_path)
+
     df = preprocessor.transform(df)
     return df
 
