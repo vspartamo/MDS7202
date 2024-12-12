@@ -23,9 +23,6 @@ COLUMNS_TO_DROP = [
 model_path = "models/best_model.pkl"
 app = FastAPI()
 
-print("Directorio de trabajo actual:", os.getcwd())
-print("Ruta absoluta:", os.path.abspath("."))
-
 
 def prepare_data(df: pd.DataFrame, preprocessor: ColumnTransformer) -> pd.DataFrame:
     """
