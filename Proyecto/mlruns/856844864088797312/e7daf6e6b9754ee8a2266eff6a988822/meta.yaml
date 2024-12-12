@@ -1,0 +1,15 @@
+artifact_uri: file:///c:/Users/nicol/OneDrive/Escritorio/Github/MDS7202/Proyecto/mlruns/856844864088797312/e7daf6e6b9754ee8a2266eff6a988822/artifacts
+end_time: 1734031597206
+entry_point_name: ''
+experiment_id: '856844864088797312'
+lifecycle_stage: active
+run_id: e7daf6e6b9754ee8a2266eff6a988822
+run_name: best_params_training
+run_uuid: e7daf6e6b9754ee8a2266eff6a988822
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1734031593661
+status: 3
+tags: []
+user_id: nicol
