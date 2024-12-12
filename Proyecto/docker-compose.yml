@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "7888:7888"
+    volumes:
+      - ./backend/models:/app/models
+    networks:
+      - predictor_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "7860:7860"
+    depends_on:
+      - backend
+    networks:
+      - predictor_network
+
+networks:
+  predictor_network:
+    driver: bridge
