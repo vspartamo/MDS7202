@@ -5,18 +5,19 @@ from sklearn.pipeline import Pipeline
 import uvicorn
 import os
 import pandas as pd
+from sklearn.compose import ColumnTransformer
 
 
 COLUMNS_TO_DROP = [
-    'borrow_block_number',
-    'wallet_address',
-    'borrow_timestamp',
-    'first_tx_timestamp',
-    'last_tx_timestamp',
-    'risky_first_tx_timestamp',
-    'risky_last_tx_timestamp',
-    'unique_borrow_protocol_count',
-    'unique_lending_protocol_count',
+    "borrow_block_number",
+    "wallet_address",
+    "borrow_timestamp",
+    "first_tx_timestamp",
+    "last_tx_timestamp",
+    "risky_first_tx_timestamp",
+    "risky_last_tx_timestamp",
+    "unique_borrow_protocol_count",
+    "unique_lending_protocol_count",
 ]
 
 model_path = "models/best_model.pkl"
@@ -26,7 +27,7 @@ print("Directorio de trabajo actual:", os.getcwd())
 print("Ruta absoluta:", os.path.abspath("."))
 
 
-def prepare_data(data: dict) -> pd.DataFrame:
+def prepare_data(df: pd.DataFrame, preprocessor: ColumnTransformer) -> pd.DataFrame:
     """
     Prepares the data to be used in the model.
 
@@ -41,9 +42,11 @@ def prepare_data(data: dict) -> pd.DataFrame:
         The data prepared.
     """
     # 1. sacar columnas
-    
+    df = df.drop(COLUMNS_TO_DROP, axis=1)
     # 2. Pasar por preprocesador del pipeline
-    pass
+    df = preprocessor.transform(df)
+    return df
+
 
 class ClientInfo(BaseModel):
     wallet_age: float
@@ -118,7 +121,7 @@ class ClientInfo(BaseModel):
 
 # Post
 @app.post("/predict")
-def predict_morosity(sample: ClientInfo):
+def predict_morosity(client_data: ClientInfo):
     """
     Predicts the morosity of a sample using the best model.
 
@@ -132,8 +135,6 @@ def predict_morosity(sample: ClientInfo):
     dict
         The prediction of the morosity.
     """
-    print("Datos recibidos:", sample)
-
     try:
         with open(model_path, "rb") as file:
             pipeline: Pipeline = pickle.load(file)
@@ -141,9 +142,11 @@ def predict_morosity(sample: ClientInfo):
         print(f"Error al cargar el modelo: {e}")
         raise
 
-    sample_df = pd.DataFrame([sample.model_dump()])
+    data_df = pd.DataFrame([client_data.model_dump()])
 
-    prediction = pipeline.predict(sample_df)[0]
+    processed_sample = prepare_data(data_df, pipeline.named_steps["preprocessor"])
+
+    prediction = pipeline.predict(processed_sample)[0]
 
     return {"morosity": int(prediction)}
 
