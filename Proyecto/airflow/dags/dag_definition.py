@@ -1,4 +1,3 @@
-from datetime import timedelta
 import pandas as pd
 import shap
 import pickle
@@ -9,43 +8,8 @@ from sklearn.ensemble import RandomForestClassifier
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
 from airflow.operators.bash import BashOperator
-
-
-def clean_and_transform_data():
-    """Limpieza y transformación de datos"""
-    df = pd.read_csv("/opt/airflow/data/raw_data.csv")
-
-    # Ejemplo de limpieza - ajustar según sus datos
-    df.dropna(inplace=True)
-    df = df[df["feature_column"] > 0]
-
-    df.to_csv("/opt/airflow/data/cleaned_data.csv", index=False)
-
-
-def detect_data_drift():
-    """Detectar desviaciones en los datos"""
-    original_data = pd.read_csv("/opt/airflow/data/original_dataset.csv")
-    new_data = pd.read_csv("/opt/airflow/data/cleaned_data.csv")
-
-    # Ejemplo simple de detección de drift - personalizar según necesidad
-    drift_detected = False
-    for column in original_data.columns:
-        original_stats = original_data[column].describe()
-        new_stats = new_data[column].describe()
-
-        # Ejemplo de criterio de drift
-        if (
-            abs(original_stats["mean"] - new_stats["mean"])
-            > original_stats["mean"] * 0.2
-        ):
-            drift_detected = True
-            break
-
-    # Guardar bandera de drift
-    with open("/opt/airflow/data/drift_flag.txt", "w") as f:
-        f.write(str(drift_detected))
+from airflow.operators.empty import EmptyOperator
 
 
 def retrain_model():
@@ -111,33 +75,115 @@ def interpretability_analysis():
     )
 
 
+def extract_data(dataset_url, save_path):
+    import requests
+
+    response = requests.get(dataset_url)
+    with open(save_path, "wb") as file:
+        file.write(response.content)
+    print(f"Dataset saved to {save_path}")
+
+
+def clean_data(data_path):
+    import pandas as pd
+
+    df = pd.read_csv(data_path)
+    df.dropna(inplace=True)  # Simple cleaning step
+    df.to_csv(data_path, index=False)
+    print(f"Cleaned data saved to {data_path}")
+
+
+def analyze_data_drift(data_paths):
+    print("Analyzing data drift...")
+    # Placeholder for drift analysis logic
+    return "retrain_model" if True else "skip_retrain"  # Simulated condition
+
+
+def retrain_model():
+    print("Retraining model...")
+    # Placeholder for model retraining logic
+
+
+def track_interpretability():
+    print("Tracking model interpretability...")
+    # Placeholder for interpretability tracking logic
+
+
+# Default arguments for the DAG
 args = {
     "owner": "Team NPR",
+    "retries": 1,
 }
 
+# Define DAG
 with DAG(
-    dag_id="Proyecto MDS7202 - Pipeline",
+    dag_id="ml_pipeline_example",
     default_args=args,
-    schedule_interval="@weekly",
-    catchup=True,
+    description="A ML pipeline example with Airflow",
+    start_date=days_ago(1),
+    schedule_interval="@daily",
+    catchup=False,
 ) as dag:
 
-    t1 = BashOperator(
-        task_id="download_data",
-        bash_command="curl -o "
-        "/root/airflow/data_1_{{ ds }}.csv "
-        "https://gitlab.com/imezadelajara/datos_clase_7_mds7202/-/raw/main/airflow_class/data_1.csv",
+    start_task = EmptyOperator(task_id="Start")
+
+    # Extract data tasks
+    extract_task_1 = PythonOperator(
+        task_id="extract_data_1",
+        python_callable=extract_data,
+        op_kwargs={
+            "dataset_url": "https://example.com/data1.csv",
+            "save_path": "/path/to/data1.csv",
+        },
     )
 
-    t2 = PythonOperator(task_id="clean_data", python_callable=clean_and_transform_data)
-
-    t3 = PythonOperator(task_id="detect_drift", python_callable=detect_data_drift)
-
-    t4 = PythonOperator(task_id="retrain_model", python_callable=retrain_model)
-
-    t5 = PythonOperator(
-        task_id="interpretability_analysis", python_callable=interpretability_analysis
+    extract_task_2 = PythonOperator(
+        task_id="extract_data_2",
+        python_callable=extract_data,
+        op_kwargs={
+            "dataset_url": "https://example.com/data2.csv",
+            "save_path": "/path/to/data2.csv",
+        },
     )
 
-    # Definir dependencias
-    t1 >> t2 >> t3 >> t4 >> t5
+    # Clean data tasks
+    clean_task_1 = PythonOperator(
+        task_id="clean_data_1",
+        python_callable=clean_data,
+        op_kwargs={"data_path": "/path/to/data1.csv"},
+    )
+
+    clean_task_2 = PythonOperator(
+        task_id="clean_data_2",
+        python_callable=clean_data,
+        op_kwargs={"data_path": "/path/to/data2.csv"},
+    )
+
+    # Analyze data drift
+    analyze_drift_task = BranchPythonOperator(
+        task_id="analyze_data_drift",
+        python_callable=analyze_data_drift,
+        op_kwargs={"data_paths": ["/path/to/data1.csv", "/path/to/data2.csv"]},
+    )
+
+    retrain_task = PythonOperator(
+        task_id="retrain_model", python_callable=retrain_model
+    )
+
+    skip_retrain_task = EmptyOperator(task_id="skip_retrain")
+
+    # Track interpretability
+    interpretability_task = PythonOperator(
+        task_id="track_interpretability", python_callable=track_interpretability
+    )
+
+    end_task = EmptyOperator(task_id="End")
+
+    # Define task dependencies
+    start_task >> [extract_task_1, extract_task_2]
+    extract_task_1 >> clean_task_1
+    extract_task_2 >> clean_task_2
+    [clean_task_1, clean_task_2] >> analyze_drift_task
+    analyze_drift_task >> [retrain_task, skip_retrain_task]
+    [retrain_task, skip_retrain_task] >> interpretability_task
+    interpretability_task >> end_task
