@@ -7,12 +7,43 @@ import os
 import pandas as pd
 
 
+COLUMNS_TO_DROP = [
+    'borrow_block_number',
+    'wallet_address',
+    'borrow_timestamp',
+    'first_tx_timestamp',
+    'last_tx_timestamp',
+    'risky_first_tx_timestamp',
+    'risky_last_tx_timestamp',
+    'unique_borrow_protocol_count',
+    'unique_lending_protocol_count',
+]
+
 model_path = "models/best_model.pkl"
 app = FastAPI()
 
 print("Directorio de trabajo actual:", os.getcwd())
 print("Ruta absoluta:", os.path.abspath("."))
 
+
+def prepare_data(data: dict) -> pd.DataFrame:
+    """
+    Prepares the data to be used in the model.
+
+    Args
+    -----
+    data: dict
+        The data to prepare.
+
+    Returns
+    -----
+    pd.DataFrame
+        The data prepared.
+    """
+    # 1. sacar columnas
+    
+    # 2. Pasar por preprocesador del pipeline
+    pass
 
 class ClientInfo(BaseModel):
     wallet_age: float
