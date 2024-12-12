@@ -3,46 +3,10 @@ from pydantic import BaseModel
 import pickle
 from sklearn.pipeline import Pipeline
 import uvicorn
-import os
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-
-
-COLUMNS_TO_DROP = [
-    "borrow_block_number",
-    "wallet_address",
-    "borrow_timestamp",
-    "first_tx_timestamp",
-    "last_tx_timestamp",
-    "risky_first_tx_timestamp",
-    "risky_last_tx_timestamp",
-    "unique_borrow_protocol_count",
-    "unique_lending_protocol_count",
-]
 
 model_path = "models/best_model.pkl"
 app = FastAPI()
-
-
-def prepare_data(df: pd.DataFrame, preprocessor: ColumnTransformer) -> pd.DataFrame:
-    """
-    Prepares the data to be used in the model.
-
-    Args
-    -----
-    data: dict
-        The data to prepare.
-
-    Returns
-    -----
-    pd.DataFrame
-        The data prepared.
-    """
-    # 1. sacar columnas
-    df = df.drop(COLUMNS_TO_DROP, axis=1)
-    # 2. Pasar por preprocesador del pipeline
-    df = preprocessor.transform(df)
-    return df
 
 
 class ClientInfo(BaseModel):
@@ -132,6 +96,7 @@ def predict_morosity(client_data: ClientInfo):
     dict
         The prediction of the morosity.
     """
+    # 1. Load the model
     try:
         with open(model_path, "rb") as file:
             pipeline: Pipeline = pickle.load(file)
@@ -139,12 +104,14 @@ def predict_morosity(client_data: ClientInfo):
         print(f"Error al cargar el modelo: {e}")
         raise
 
+    # 2. Prepare the data
     data_df = pd.DataFrame([client_data.model_dump()])
+    processed_sample = pipeline.named_steps["preprocessor"].transform(data_df)
 
-    processed_sample = prepare_data(data_df, pipeline.named_steps["preprocessor"])
-
+    # 3. Make the prediction
     prediction = pipeline.predict(processed_sample)[0]
 
+    # 4. Return the prediction
     return {"morosity": int(prediction)}
 
 
