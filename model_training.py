@@ -1,15 +1,11 @@
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import os
-import sys
-from sklearn.pipeline import Pipeline
+import numpy as np
+from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
-from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -19,190 +15,10 @@ from sklearn.metrics import (
     confusion_matrix,
     classification_report,
 )
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.decomposition import PCA
-from sklearn.compose import ColumnTransformer
 import optuna
-import pandas as pd
 import mlflow
-import os
 import pickle
-from typing import List
-from xgboost import XGBClassifier
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.preprocessing import MinMaxScaler
-from scipy.stats import ks_2samp, mannwhitneyu
-from sklearn.utils import resample
-from collections import Counter
-
-import os
-import pickle
-from typing import Callable, List, Union
-import mlflow
-import optuna
-import pandas as pd
-import numpy as np
-from sklearn.base import BaseEstimator
-from sklearn.compose import ColumnTransformer
-from sklearn.decomposition import PCA
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
-
-
-
-#como se importa la data en este caso?
-DATA_PATH = "data/"
-X_t0 = pd.read_parquet(DATA_PATH + "X_t0.parquet")
-y_t0 = pd.read_parquet(DATA_PATH + "y_t0.parquet")
-
-df_t0 = pd.concat([X_t0, y_t0], axis=1)
-df_t0.head()
-
-#eliminar columnas que no aportan información
-columns_to_drop = [
-    'borrow_block_number',
-    'wallet_address',
-    'borrow_timestamp',
-    'first_tx_timestamp',
-    'last_tx_timestamp',
-    'risky_first_tx_timestamp',
-    'risky_last_tx_timestamp',
-    'unique_borrow_protocol_count',
-    'unique_lending_protocol_count',
-]
-
-df_t0_columns_dropped = df_t0.drop(columns=columns_to_drop, inplace=False)
-
-# columnas numericas y categoricas
-numeric_features = df_t0_columns_dropped.select_dtypes(include=['int64', 'float64']).columns
-train_numeric_features = numeric_features.drop('target')
-categorical_features = df_t0_columns_dropped.select_dtypes(include=['object']).columns
-
-
-#separar en train, val y test
-X = df_t0_columns_dropped.drop(columns='target')
-y = df_t0_columns_dropped['target']
-
-X_train, X_temp, y_train, y_temp = train_test_split(X, y, train_size=0.7, stratify=y_t0, random_state=42)
-X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, train_size=0.5, stratify=y_temp, random_state=42)
-X_train.shape, X_val.shape, X_test.shape
-
-
-# Pipeline para características numéricas con PCA
-numeric_transformer = Pipeline(steps=[
-    ('scaler', StandardScaler()),   # Hay que ver si distributen normal o es mejor otro scaler
-#    ('pca', PCA(n_components=50))  # Reduce a 50 componentes principales
-])
-
-categorical_transformer = Pipeline(steps=[
-    ('onehot', OneHotEncoder(handle_unknown='ignore'))
-])
-
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', numeric_transformer, numeric_features.drop('target')),  # Numéricas con PCA
-        ('cat', categorical_transformer, categorical_features)  # Categóricas con OneHot
-    ]
-)
-
-X_train = pd.DataFrame(X_train, columns=X.columns)
-X_val = pd.DataFrame(X_val, columns=X.columns)
-X_test = pd.DataFrame(X_test, columns=X.columns)
-
-y_train = np.array(y_train).ravel()
-y_val = np.array(y_val).ravel()
-y_test = np.array(y_test).ravel()
-
-import os
-import pickle
-from typing import Callable, List, Union
-import mlflow
-import optuna
-import pandas as pd
-import numpy as np
-from sklearn.base import BaseEstimator
-from sklearn.compose import ColumnTransformer
-from sklearn.decomposition import PCA
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
-import os
-import pickle
-from typing import Callable, List, Union
-import mlflow
-import optuna
-import pandas as pd
-import numpy as np
-from sklearn.base import BaseEstimator
-from sklearn.compose import ColumnTransformer
-from sklearn.decomposition import PCA
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
-
-def create_preprocessor(
-    numeric_features: Union[pd.Index, List[str]],
-    categorical_features: Union[pd.Index, List[str]],
-    scaler=None,
-    use_pca=False,
-    pca_components=50,
-):
-    if scaler is None:
-        scaler = StandardScaler()
-
-    # Define numeric transformer
-    numeric_transformer_steps = [("scaler", scaler)]
-    if use_pca:
-        numeric_transformer_steps.append(("pca", PCA(n_components=pca_components)))
-    numeric_transformer = Pipeline(steps=numeric_transformer_steps)
-
-    # Define categorical transformer
-    categorical_transformer = Pipeline(
-        steps=[("onehot", OneHotEncoder(handle_unknown="ignore"))]
-    )
-
-    # Combine preprocessors
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", numeric_transformer, numeric_features),
-            ("cat", categorical_transformer, categorical_features),
-        ]
-    )
-
-    return preprocessor
-
-
-def create_pipeline(
-    model: BaseEstimator,
-    preprocessor: ColumnTransformer,
-):
-    return Pipeline(steps=[("preprocessor", preprocessor), ("classifier", model)])
+from typing import Union, List, Callable
 
 
 def optimize_hyperparameters(
