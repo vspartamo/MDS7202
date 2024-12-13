@@ -79,6 +79,18 @@ ORDERED_COLUMNS = [
     "market_rocr",
 ]
 
+FEATURES_TO_DROP = [
+    "borrow_block_number",
+    "wallet_address",
+    "borrow_timestamp",
+    "first_tx_timestamp",
+    "last_tx_timestamp",
+    "risky_first_tx_timestamp",
+    "risky_last_tx_timestamp",
+    "unique_borrow_protocol_count",
+    "unique_lending_protocol_count",
+]
+
 
 class ClientInfo(BaseModel):
     wallet_age: float
@@ -177,7 +189,8 @@ def predict_morosity(client_data: ClientInfo):
 
     # 2. Prepare the data with de model dump
     data_df = pd.DataFrame(client_data.model_dump(), index=[0])
-    processed_sample = pipeline.named_steps["preprocessor"].transform(data_df)
+    data_df_clean = data_df.drop(FEATURES_TO_DROP, axis=1, errors="ignore")
+    processed_sample = pipeline.named_steps["preprocessor"].transform(data_df_clean)
 
     # 3. Create dataframe with processed sample and names of columns
     processed_sample_df = pd.DataFrame(
