@@ -1,94 +1,108 @@
 import gradio as gr
 import pandas as pd
 import requests
+import io
 
 
 def predict_from_csv(csv_file):
     """
     Procesa predicciones desde un archivo CSV
     """
+    print(f"Procesando archivo: {csv_file}")
+    print(f"Tipo de archivo: {type(csv_file)}")
     try:
-        df = pd.read_csv(csv_file.name)
-        predictions = []
+        df = pd.read_csv(io.BytesIO(csv_file))
+    except Exception as e:
+        return f"Error al cargar el archivo CSV: {str(e)}"
 
+    try:
         # Verificar que el CSV tenga todas las columnas necesarias
         required_columns = [
-            "wallet_age"
-            "incoming_tx_count"
-            "outgoing_tx_count"
-            "net_incoming_tx_count"
-            "total_gas_paid_eth"
-            "avg_gas_paid_per_tx_eth"
-            "risky_tx_count"
-            "risky_unique_contract_count"
-            "risky_first_last_tx_timestamp_diff"
-            "risky_sum_outgoing_amount_eth"
-            "outgoing_tx_sum_eth"
-            "incoming_tx_sum_eth"
-            "outgoing_tx_avg_eth"
-            "incoming_tx_avg_eth"
-            "max_eth_ever"
-            "min_eth_ever"
-            "total_balance_eth"
-            "risk_factor"
-            "total_collateral_eth"
-            "total_collateral_avg_eth"
-            "total_available_borrows_eth"
-            "total_available_borrows_avg_eth"
-            "avg_weighted_risk_factor"
-            "risk_factor_above_threshold_daily_count"
-            "avg_risk_factor"
-            "max_risk_factor"
-            "borrow_amount_sum_eth"
-            "borrow_amount_avg_eth"
-            "borrow_count"
-            "repay_amount_sum_eth"
-            "repay_amount_avg_eth"
-            "repay_count"
-            "borrow_repay_diff_eth"
-            "deposit_count"
-            "deposit_amount_sum_eth"
-            "time_since_first_deposit"
-            "withdraw_amount_sum_eth"
-            "withdraw_deposit_diff_if_positive_eth"
-            "liquidation_count"
-            "time_since_last_liquidated"
-            "liquidation_amount_sum_eth"
-            "market_adx"
-            "market_adxr"
-            "market_apo"
-            "market_aroonosc"
-            "market_aroonup"
-            "market_atr"
-            "market_cci"
-            "market_cmo"
-            "market_correl"
-            "market_dx"
-            "market_fastk"
-            "market_fastd"
-            "market_ht_trendmode"
-            "market_linearreg_slope"
-            "market_macd_macdext"
-            "market_macd_macdfix"
-            "market_macd"
-            "market_macdsignal_macdext"
-            "market_macdsignal_macdfix"
-            "market_macdsignal"
-            "market_max_drawdown_365d"
-            "market_natr"
-            "market_plus_di"
-            "market_plus_dm"
-            "market_ppo"
-            "market_rocp"
-            "market_rocr"
+            "wallet_age",
+            "incoming_tx_count",
+            "outgoing_tx_count",
+            "net_incoming_tx_count",
+            "total_gas_paid_eth",
+            "avg_gas_paid_per_tx_eth",
+            "risky_tx_count",
+            "risky_unique_contract_count",
+            "risky_first_last_tx_timestamp_diff",
+            "risky_sum_outgoing_amount_eth",
+            "outgoing_tx_sum_eth",
+            "incoming_tx_sum_eth",
+            "outgoing_tx_avg_eth",
+            "incoming_tx_avg_eth",
+            "max_eth_ever",
+            "min_eth_ever",
+            "total_balance_eth",
+            "risk_factor",
+            "total_collateral_eth",
+            "total_collateral_avg_eth",
+            "total_available_borrows_eth",
+            "total_available_borrows_avg_eth",
+            "avg_weighted_risk_factor",
+            "risk_factor_above_threshold_daily_count",
+            "avg_risk_factor",
+            "max_risk_factor",
+            "borrow_amount_sum_eth",
+            "borrow_amount_avg_eth",
+            "borrow_count",
+            "repay_amount_sum_eth",
+            "repay_amount_avg_eth",
+            "repay_count",
+            "borrow_repay_diff_eth",
+            "deposit_count",
+            "deposit_amount_sum_eth",
+            "time_since_first_deposit",
+            "withdraw_amount_sum_eth",
+            "withdraw_deposit_diff_if_positive_eth",
+            "liquidation_count",
+            "time_since_last_liquidated",
+            "liquidation_amount_sum_eth",
+            "market_adx",
+            "market_adxr",
+            "market_apo",
+            "market_aroonosc",
+            "market_aroonup",
+            "market_atr",
+            "market_cci",
+            "market_cmo",
+            "market_correl",
+            "market_dx",
+            "market_fastk",
+            "market_fastd",
+            "market_ht_trendmode",
+            "market_linearreg_slope",
+            "market_macd_macdext",
+            "market_macd_macdfix",
+            "market_macd",
+            "market_macdsignal_macdext",
+            "market_macdsignal_macdfix",
+            "market_macdsignal",
+            "market_max_drawdown_365d",
+            "market_natr",
+            "market_plus_di",
+            "market_plus_dm",
+            "market_ppo",
+            "market_rocp",
+            "market_rocr",
         ]
 
-        if not all(col in df.columns for col in required_columns):
-            return "Error: El CSV no contiene todas las columnas requeridas"
+        for col in required_columns:
+            if col not in df.columns:
+                return f"Columna faltante en CSV: {col}"
 
+    except Exception as e:
+        return f"Error al verificar columnas: {str(e)}"
+
+    print(f"Columnas en CSV: {df.columns}")
+    predictions = []
+
+    try:
         # Realizar predicciones para cada fila
         for _, row in df.iterrows():
             payload = row.to_dict()
+            print(f"Prediciendo con datos: {payload}")
             response = requests.post("http://backend:7888/predict", json=payload)
             predictions.append(response.json()["morosity"])
 
@@ -459,14 +473,12 @@ def create_gradio_interface():
             )
 
         with gr.Tab("Predicción por CSV"):
-            csv_input = gr.File(
-                label="Cargar Archivo CSV", file_types=["csv"], file_count="single"
-            )
+            csv_input = gr.File(label="Cargar Archivo CSV", type="binary")
             predict_csv_button = gr.Button("Predecir desde CSV")
             csv_output = gr.Dataframe(label="Resultados")
 
             predict_csv_button.click(
-                fn=predict_from_csv, inputs=csv_input, outputs=csv_output
+                fn=predict_from_csv, inputs=[csv_input], outputs=csv_output
             )
 
     return demo
