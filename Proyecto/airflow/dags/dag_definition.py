@@ -4,7 +4,6 @@ import pickle
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.bash import BashOperator
 from airflow.operators.empty import EmptyOperator
 from utils import preprocess_data, detect_drift, retrain_model
 
@@ -46,7 +45,8 @@ def extract_data(dataset_url, save_path):
 def track_interpretability():
     print("Tracking model interpretability...")
     # Placeholder for interpretability tracking logic
-    
+
+
 def select_branch_from_drift(drift_value):
     """Selecciona la rama a seguir basado en los valores de drift"""
     if drift_value is True:
@@ -65,7 +65,6 @@ with DAG(
     dag_id="ml_pipeline_example",
     default_args=args,
     description="A ML pipeline example with Airflow",
-    start_date=days_ago(1),
     schedule_interval="@weekly",
     catchup=False,
 ) as dag:
@@ -90,7 +89,7 @@ with DAG(
     # Analyze data drift
     analyze_drift_step = BranchPythonOperator(
         task_id="analyze_data_drift",
-        python_callable=analyze_data_drift,
+        python_callable=detect_drift,
         op_kwargs={"data_paths": ["/path/to/data1.csv", "/path/to/data2.csv"]},
     )
 
@@ -108,10 +107,4 @@ with DAG(
     end_step = EmptyOperator(task_id="End")
 
     # Define task dependencies
-    start_step >> extract_data_step >> 
-    extract_step_1 >> clean_step_1
-    extract_step_2 >> clean_step_2
-    [clean_step_1, clean_step_2] >> analyze_drift_step
-    analyze_drift_step >> [retrain_step, skip_retrain_step]
-    [retrain_step, skip_retrain_step] >> interpretability_step
-    interpretability_step >> end_step
+    start_step >> extract_data_step >> clean_data
